@@ -30,13 +30,16 @@
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html,body{margin:0;background:var(--bg);color:var(--paper);height:100%;overflow:hidden;overscroll-behavior:none;touch-action:manipulation}
-body{font:14px/1.3 var(--body);padding-block:calc(10px + var(--sat)) calc(14px + var(--sab));padding-inline:max(16px,var(--sal)) max(16px,var(--sar));
-  -webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
-.app{max-width:440px;margin:0 auto;min-height:100%;display:grid;gap:10px;align-content:center}
+body{font:14px/1.3 var(--body);-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+/* Full screen: the HUD sits at the top (below the status bar / camera cut-out), the play field fills everything under it
+   edge to edge. resize() sizes the field: full width, and as tall as the screen is. */
+.app{position:fixed;inset:0;display:flex;flex-direction:column}
+.wrap{flex:1;min-height:0;display:flex;justify-content:center;align-items:flex-end}
 .ol{color:#fff;text-shadow:2px 0 0 var(--ink),-2px 0 0 var(--ink),0 2px 0 var(--ink),0 -2px 0 var(--ink),2px 2px 0 var(--ink),-2px 2px 0 var(--ink),2px -2px 0 var(--ink),-2px -2px 0 var(--ink),0 4px 0 var(--ink)}
 
 /* HUD */
-.hud{display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;gap:8px}
+.hud{flex:none;display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;gap:8px;width:100%;max-width:480px;margin:0 auto;
+  padding:calc(8px + var(--sat)) max(14px,var(--sar)) 12px max(14px,var(--sal))}
 .pill{background:var(--paper);color:var(--ink);border:3px solid var(--ink);border-radius:12px;padding:1px 10px;font:400 18px var(--display);
   box-shadow:0 3px 0 var(--ink);display:flex;align-items:center;gap:6px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .coin-ic{width:14px;height:14px;border-radius:50%;background:var(--gold);border:2px solid var(--ink);flex:none}
@@ -47,8 +50,7 @@ body{font:14px/1.3 var(--body);padding-block:calc(10px + var(--sat)) calc(14px +
 .sq svg{width:22px;height:22px}
 
 /* Stage */
-.stage{position:relative;width:min(100%, calc((100vh - 80px - var(--sat) - var(--sab)) * .6));width:min(100%, calc((100dvh - 80px - var(--sat) - var(--sab)) * .6));
-  max-width:100%;aspect-ratio:360/600;margin-inline:auto;border-radius:20px;overflow:hidden;border:4px solid var(--ink);box-shadow:0 6px 0 #000;background:#1B1030}
+.stage{position:relative;flex:none;overflow:hidden;background:#1B1030;border-radius:22px 22px 0 0;box-shadow:0 -3px 0 var(--ink)}
 .stage canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block}
 .overlay{position:absolute;inset:0;display:grid;grid-template:minmax(0,1fr) / minmax(0,1fr);place-items:center;padding:14px;background:rgba(10,4,20,.45)}
 
@@ -116,15 +118,16 @@ button:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
         <circle cx="12" cy="12" r="3.2" fill="#FFF3E2"/></svg>
     </button>
   </div>
-  <div class="stage" id="stage">
+  <div class="wrap" id="wrap"><div class="stage" id="stage">
     <canvas id="cv" aria-label="Game field. Hold and drag to move the cannon and shoot."></canvas>
     <div class="overlay" id="ov"></div>
-  </div>
+  </div></div>
 </div>
 
 <script>
 (()=>{
-const LW=360,LH=600,GROUND=LH-72,G=850,TAU=Math.PI*2;
+const LW=360,G=850,TAU=Math.PI*2;
+let LH=600,GROUND=LH-72;   // LH grows on tall phones so the field fills the whole screen (see resize)
 const rnd=(a,b)=>a+Math.random()*(b-a);
 const RAD=[14,21,30,41];
 const BOUNCE=[190,250,300,350].map(h=>Math.sqrt(2*G*h));
@@ -642,8 +645,16 @@ function closeSettings(){
 $('gear').onclick=()=>{if(ovKind==='settings'&&!ov.hidden)closeSettings();else openSettings();};
 
 /* ---------- sizing + loop ---------- */
-function resize(){const w=stage.clientWidth;if(!w)return;dpr=Math.min(window.devicePixelRatio||1,2.5);k=w/LW;cv.width=Math.round(LW*k*dpr);cv.height=Math.round(LH*k*dpr);bg=null;fitCard();}
-new ResizeObserver(resize).observe(stage);resize();
+/* The field is 360 units wide. On a tall phone it is stretched to the full screen width and made taller (up to 960 units)
+   so nothing is left empty; on a short or wide window it shrinks to fit (never less than 600 tall). */
+const wrap=document.getElementById('wrap');
+function resize(){
+  const aw=Math.min(wrap.clientWidth,480),ah=wrap.clientHeight;if(!aw||!ah)return;
+  const kk=Math.min(aw/LW,ah/600),h=Math.min(960,Math.floor(ah/kk)),w=Math.round(LW*kk);
+  stage.style.width=w+'px';stage.style.height=Math.round(h*kk)+'px';
+  if(h!==LH){LH=h;GROUND=LH-72;if(theme){amb=theme.init();}}
+  dpr=Math.min(window.devicePixelRatio||1,2.5);k=w/LW;cv.width=Math.round(LW*k*dpr);cv.height=Math.round(LH*k*dpr);bg=null;fitCard();}
+new ResizeObserver(resize).observe(wrap);resize();
 let prev=performance.now();
 function loop(now){const dt=Math.min(1/30,(now-prev)/1000);prev=now;update(dt);draw(dt);requestAnimationFrame(loop);}
 

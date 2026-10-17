@@ -21,7 +21,7 @@ window.__bb={
   startLevel(n){ if(n) S.level=n; startLevel(); }, setFiring(v){firing=v;fired=true}, setTx(x){cannon.tx=x},
   setThemeById(id){S.set.bg=id;pickTheme();}, openSettings, closeSettings, goBack, toMenu,
   setExit(fn){exitApp=fn},
-  fireRate, damage, levelHP, THEMES, GROUND, LW, LH, G, RAD, BOUNCE, levelPlayed(){return levelPlayed}
+  fireRate, damage, levelHP, THEMES, get GROUND(){return GROUND}, LW, get LH(){return LH}, G, RAD, BOUNCE, levelPlayed(){return levelPlayed}
 };
 })();`;
 
