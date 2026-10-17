@@ -6,6 +6,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write   # lets the workflow publish a GitHub Release
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -37,6 +40,18 @@ jobs:
         with:
           name: blob-blaster-debug-apk
           path: android/app/build/outputs/apk/debug/*.apk
+
+      # Publishes the APK as a GitHub Release so it can be downloaded straight from a phone (Releases section of the repo)
+      - name: Publish APK as GitHub Release
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk blob-blaster-build${{ github.run_number }}.apk
+          gh release create "build-${{ github.run_number }}" blob-blaster-build${{ github.run_number }}.apk \
+            --title "Blob Blaster build ${{ github.run_number }}" \
+            --notes "Debug APK for phone testing. Download the .apk below on your Android phone and install it (allow 'install unknown apps' for your browser)." \
+            --prerelease
 
       # Signed Play Store bundle: only runs when you add the 4 secrets described in PLAY_STORE.md
       - name: Build signed release AAB
