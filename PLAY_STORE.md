@@ -50,7 +50,7 @@ Policy URL will be `https://boidbit.github.io/bob-blaster/privacy.html` (edit th
    - Full description:
      > Blob Blaster is a fast, colourful arcade shooter. Slide to move your cannon, hold fire and pop the bouncing number blobs before they land on you. Big blobs split into smaller ones, combos stack up, and every level throws something new at you.
      >
-     > • One-thumb controls · • Your cannon gets stronger automatically as you reach higher levels · • Six different backgrounds, or let the game shuffle them · • Sound, vibration and background settings · • No ads, no sign-up, works offline
+     > • One-thumb controls · • Levels get tougher and tougher: more and bigger blobs · • Six different backgrounds, or let the game shuffle them · • Sound, vibration and background settings · • No ads, no sign-up, works offline
 5. **Release**:
    - **Personal developer accounts created after Nov 2023 must run a closed test with at least 12 testers opted in for 14 continuous days** before you can apply for production. Plan this first: Testing → Closed testing → create track → upload the AAB → add testers (Google Group or email list) → ask them to opt in and keep the app installed for 14 days.
    - Then Dashboard → "Apply for production" → answer the questions → create the production release.

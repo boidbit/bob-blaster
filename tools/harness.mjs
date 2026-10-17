@@ -26,7 +26,7 @@ window.__bb={
 })();`;
 
 export async function launch({ width = 360, height = 640, dpr = 1, manualLoop = true } = {}) {
-  const src = fs.readFileSync(path.join(root, 'www/index.html'), 'utf8');
+  const src = fs.readFileSync(process.env.GAME_FILE || path.join(root, 'www/index.html'), 'utf8');
   if (!src.includes(NEEDLE)) throw new Error('harness: could not find the end of the game script to patch');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bb-'));
   fs.writeFileSync(path.join(dir, 'index.html'), src.replace(NEEDLE, HOOK));

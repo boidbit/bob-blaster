@@ -79,15 +79,6 @@ body{font:14px/1.3 var(--body);padding-block:calc(10px + var(--sat)) calc(14px +
 .btn.blue{background:var(--blue)} .btn.red{background:var(--red)} .btn.small{font-size:17px;padding:5px 12px 7px;border-radius:12px}
 .btnrow{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 
-/* Cannon stats (they grow by themselves with the level, so this is display only) */
-.power{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.pw{background:#fff;border:3px solid var(--ink);border-radius:14px;padding:6px 6px 8px;color:var(--ink);display:grid;gap:1px;justify-items:center;min-width:0}
-.pw .t{font:400 15px var(--display);color:var(--muted)}
-.pw .v{font:800 17px var(--body);font-variant-numeric:tabular-nums;white-space:nowrap}
-.pw .v small{font:700 11px var(--body);color:var(--muted)}
-.pw .v s{text-decoration:none;color:var(--muted);font-weight:700}
-.pw .v em{font-style:normal;color:#14803B}
-.pw.up{background:#DFF8E6;box-shadow:0 3px 0 var(--ink)}
 .tip{margin:0;font:600 13px/1.35 var(--body);color:var(--muted)}
 
 /* Settings: the list scrolls, the button row stays pinned at the bottom so DONE / RESUME is always visible */
@@ -155,17 +146,10 @@ try{const s=JSON.parse(localStorage.getItem(KEY)||'null');if(s&&typeof s.level==
 delete S.rate;delete S.dmg;                       // older builds stored manual upgrades here
 S.set=Object.assign({sfx:true,vib:true,shake:true,bg:'random'},S.set||{});
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
-/* The cannon grows with the level, nothing to buy.
-   Fire rate: 9/s at level 1, +1 every 3 levels, capped at 16/s from level 22.
-   Damage: sized so a level's blobs take about 9 seconds of non-stop hits (levelHP / (fire rate x 9)).
-   It never goes down. Roughly: level 1-2 = 1, 3-4 = 2, 5-6 = 4, 10 = 7, 20 = 10, 30 = 14, 50 = 22.
-   A bot with a 0.15s reaction time clears levels 1-50 about 70-100% of the time with this curve. */
-const fireRate=l=>Math.min(16,9+Math.floor((l-1)/3));
-const DMG_SECONDS=9,_dmg=[0,1];
-function damage(l){
-  while(_dmg.length<=l){const n=_dmg.length;_dmg.push(Math.max(_dmg[n-1],Math.ceil(levelHP(n)/(fireRate(n)*DMG_SECONDS))));}
-  return _dmg[Math.max(1,l)];
-}
+/* The cannon never changes: same fire rate and damage on every level. Levels get harder because the blobs do
+   (more of them, bigger, more HP) -- see levelShape(). The functions keep a level argument so tools can call them. */
+const FIRE_RATE=9,DAMAGE=1;
+const fireRate=l=>FIRE_RATE, damage=l=>DAMAGE;
 
 /* ---------- audio ---------- */
 let ac=null,noiseBuf=null,lastPew=0;
@@ -186,7 +170,6 @@ const sfx={
   hurt(){osc('sawtooth',260,90,.3,.12);noise(.2,.2,600)},
   boom(){noise(.7,.4,700);osc('sawtooth',300,40,.8,.15)},
   win(){[523,659,784,1046,1318].forEach((f,i)=>osc('triangle',f,f,.28,.12,i*.08))},
-  up(){osc('triangle',660,990,.12,.12);osc('triangle',990,1480,.14,.1,.1)},
   click(){osc('triangle',520,700,.06,.08)}
 };
 const buzz=ms=>{if(!S.set.vib)return;try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}};
@@ -311,22 +294,32 @@ function tot(h,s){return h+(s>0?2*tot(Math.ceil(h/2),s-1):0)}
 /* Level recipe: how many blobs, the biggest size, and the HP scale. The first blob is always the biggest size,
    each later one is the biggest size or one step smaller (50/50). */
 const SIZE_HP=[.4,.6,.8,1];
-function levelShape(L){return {count:Math.min(6,1+Math.ceil(L/2)),maxS:Math.min(3,Math.ceil(L/2)),base:5+L*3}}
+/* Difficulty. The cannon never gets stronger, so a level gets harder by having more blob HP to chew through:
+   the longer it takes, the longer you have to dodge. hpTarget(L) is the total HP (splits included) we aim for;
+   count / biggest size grow with the level and the per-blob HP is chosen to land on that target. */
+const hpTarget=L=>L<=8?10+8*L:74+7*(L-8);
+function levelShape(L){
+  const count=Math.min(6,1+Math.ceil(L/2)),maxS=Math.min(3,Math.ceil(L/2));
+  if(!_base[L]){let b=2;while(shapeHP(count,maxS,b)<hpTarget(L))b++;_base[L]=b;}
+  return {count,maxS,base:_base[L]};
+}
+const _base=[];
 const blobHP=(base,s)=>Math.max(1,Math.round(base*SIZE_HP[s]));
 function makeQueue(L){
   const {count,maxS,base}=levelShape(L),q=[];
   for(let i=0;i<count;i++){const s=i===0?maxS:Math.max(0,maxS-(Math.random()<.5?1:0));q.push({s,hp:blobHP(base,s)});}
   return q;
 }
-/* Average total HP of a level (all the splits included). The cannon's damage is derived from this. */
-function levelHP(L){
-  const {count,maxS,base}=levelShape(L);let sum=0;
+/* Average total HP of a level (all the splits included) for a given shape. */
+function shapeHP(count,maxS,base){
+  let sum=0;
   for(let i=0;i<count;i++){
     const opts=i===0?[[maxS,1]]:[[maxS,.5],[Math.max(0,maxS-1),.5]];
     for(const [s,p] of opts)sum+=p*tot(blobHP(base,s),s);
   }
   return sum;
 }
+const levelHP=L=>{const {count,maxS,base}=levelShape(L);return shapeHP(count,maxS,base)};
 function newBlob(s,hp,x,y,vx,vy){return {s,hp,max:hp,r:RAD[s],x,y,vx,vy,sq:0,pu:0,fl:0,ph:Math.random()*10}}
 function startLevel(){
   initAudio();pickTheme();
@@ -578,25 +571,18 @@ function hud(){
 }
 const STAR=on=>`<svg viewBox="0 0 24 24" aria-hidden="true"><polygon points="12,1.8 15.1,8.6 22.4,9.3 16.9,14.2 18.5,21.5 12,17.7 5.5,21.5 7.1,14.2 1.6,9.3 8.9,8.6"
   fill="${on?'#FFD23F':'#D8CBB6'}" stroke="#1A0A2A" stroke-width="2" stroke-linejoin="round"/>${on?'<ellipse cx="9.5" cy="9" rx="2" ry="1.2" fill="#fff" opacity=".7" transform="rotate(-30 9.5 9)"/>':''}</svg>`;
-/* Cannon stats for a level `from`, and what they become at level `to`. Changed values are highlighted. */
-function powerHTML(from,to){
-  const box=(t,a,b,unit)=>`<div class="pw${a!==b?' up':''}"><span class="t">${t}</span><span class="v">${a!==b?`<s>${a}</s> → <em>${b}</em>`:a} <small>${unit}</small></span></div>`;
-  return `<div class="power">${box('Fire rate',fireRate(from),fireRate(to),'/sec')}${box('Damage',damage(from),damage(to),'/shot')}</div>`;
-}
-const poweredUp=(from,to)=>fireRate(from)!==fireRate(to)||damage(from)!==damage(to);
 const TIPS=['Stay under the blob you are shooting. Slide away when it lands.','Big blobs bounce high. Watch the shadow on the floor.','Pop blobs back to back to build a combo and earn bonus coins.','Your hearts refill at the start of every level.'];
 let ovKind='menu',settingsBack=null,confirmReset=false;
 function showOverlay(kind){
   const again=!ov.hidden&&ovKind===kind,keepScroll=again&&document.querySelector('.scroller')?document.querySelector('.scroller').scrollTop:0;
   ovKind=kind;let h='';
   if(kind==='menu')h=`<div class="logo"><span>BLOB</span><span>BLASTER</span></div>
-    ${S.best>1?`<div class="sub">Best: Level ${S.best}</div>`:''}<div class="lbl">YOUR CANNON</div>${powerHTML(S.level,S.level)}<button class="btn ol" id="go">PLAY LEVEL ${S.level}</button>`;
-  if(kind==='clear'){const up=poweredUp(S.level-1,S.level);
+    ${S.best>1?`<div class="sub">Best: Level ${S.best}</div>`:''}<button class="btn ol" id="go">PLAY LEVEL ${S.level}</button>`;
+  if(kind==='clear'){
     h=`<div class="ribbon ol" style="--rib:#3CCB6C">LEVEL ${S.level-1}</div>
     <div class="stars">${[1,2,3].map(i=>STAR(i<=starsWon)).join('')}</div>
     <div class="reward"><span class="coin-ic"></span>+${earned}</div>
-    <div class="lbl">${up?'CANNON POWER UP!':'YOUR CANNON'}</div>${powerHTML(S.level-1,S.level)}<button class="btn ol" id="go">NEXT</button>`;
-    if(up)setTimeout(()=>{if(ovKind==='clear')sfx.up()},450);}
+    <div class="sub">Next: Level ${S.level}, tougher blobs!</div><button class="btn ol" id="go">NEXT</button>`;}
   if(kind==='over')h=`<div class="ribbon ol" style="--rib:#FF4D4D">OUT OF HEARTS</div>
     <div class="sub">${Math.floor(dealt/total*100)}% cleared</div><p class="tip">${TIPS[Math.floor(Math.random()*TIPS.length)]}</p><button class="btn ol" id="go">RETRY</button>`;
   if(kind==='settings'){

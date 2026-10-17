@@ -20,10 +20,13 @@ const botPlay = (level, seconds = 400) => page.evaluate(({ level, seconds }) => 
   return { state: bb.state, lives: bb.lives };
 }, { level, seconds });
 
+// ---- difficulty rises with the level (more blob HP), cannon stays the same
+check('level HP grows every few levels, never shrinks much', await page.evaluate(() => { const h = [1, 3, 5, 8, 10, 15, 20, 30, 40].map((l) => window.__bb.levelHP(l)); return h.every((v, i) => i === 0 || v > h[i - 1]); }));
+
 // ---- boot + menu
-check('fonts load from the app (offline)', await page.evaluate(() => document.fonts.check('20px "Lilita One"') && document.fonts.check('700 14px Figtree')));
+check('fonts load from the app (offline)', await page.evaluate(async () => { await Promise.all([document.fonts.load('20px "Lilita One"'), document.fonts.load('700 14px Figtree')]); return document.fonts.check('20px "Lilita One"') && document.fonts.check('700 14px Figtree'); }));
 check('menu shows PLAY LEVEL 1', (await text('#go')).includes('PLAY LEVEL 1'));
-check('menu shows cannon stats 9 /sec and 1 /shot', (await text('.power')).replace(/\s+/g, ' ').includes('9 /sec') && (await text('.power')).replace(/\s+/g, ' ').includes('1 /shot'));
+check('menu has no cannon/upgrade boxes (cannon is the same on every level)', (await page.locator('.power, .pw').count()) === 0 && await page.evaluate(() => [1, 5, 20, 99].every((l) => window.__bb.fireRate(l) === 9 && window.__bb.damage(l) === 1)));
 check('no upgrade shop anywhere', (await page.locator('.shop, .up, #up-rate, #up-dmg, .price').count()) === 0 && !(await page.content()).includes('UPGRADES'));
 await frames(30); await shot('01-menu');
 
@@ -37,12 +40,12 @@ await page.evaluate(() => { window.__bb.setFiring(true); }); await frames(1);
 let r = await botPlay(3); await frames(5);
 check('level 3 cleared by the bot', r.state === 'clear', JSON.stringify(r));
 let t = (await text('.card')).replace(/\s+/g, ' ');
-check('clear card says CANNON POWER UP! with 9 -> 10 fire rate', t.includes('CANNON POWER UP!') && t.includes('9') && t.includes('10 /sec'), t);
+check('clear card has no power-up, says the next level is tougher', !t.includes('POWER UP') && t.includes('tougher'), t);
 check('clear card has Level 3 ribbon, stars, coins, NEXT', t.includes('LEVEL 3') && t.includes('NEXT') && (await page.locator('.stars svg').count()) === 3);
 await shot('02-clear-powerup');
 r = await botPlay(4); await frames(5);
 t = (await text('.card')).replace(/\s+/g, ' ');
-check('level 4 -> 5 shows damage 2 -> 4', r.state === 'clear' && (await page.locator('.pw.up').count()) >= 1 && t.includes('4 /shot'), t);
+check('level 4 cleared too, still no power-up boxes', r.state === 'clear' && (await page.locator('.pw').count()) === 0, t);
 await page.click('#go');
 check('NEXT starts the following level', await page.evaluate(() => window.__bb.state === 'play' && window.__bb.levelPlayed() === 5));
 
@@ -94,7 +97,7 @@ await page.reload(); await page.addScriptTag({ path: path.resolve(path.dirname(f
 check('reload keeps level 12 and coins', await page.evaluate(() => window.__bb.S.level === 12 && window.__bb.S.coins === 321), await page.evaluate(() => JSON.stringify(window.__bb.S) + ' | ls=' + localStorage.getItem('blobblaster.v2')));
 await page.evaluate(() => localStorage.setItem('blobblaster.v2', JSON.stringify({ level: 7, coins: 50, rate: 5, dmg: 4, best: 7, set: {} })));
 await page.reload();
-check('an old save with manual upgrades loads, and the extra fields are dropped', await page.evaluate(() => window.__bb.S.level === 7 && !('rate' in window.__bb.S) && !('dmg' in window.__bb.S) && window.__bb.fireRate(7) === 11 && window.__bb.damage(7) === 5));
+check('an old save with manual upgrades loads, and the extra fields are dropped', await page.evaluate(() => window.__bb.S.level === 7 && !('rate' in window.__bb.S) && !('dmg' in window.__bb.S) && window.__bb.fireRate(7) === 9 && window.__bb.damage(7) === 1));
 await page.click('#gear'); await page.click('#rs');
 check('reset asks first', (await text('.danger')).includes('Delete your coins'));
 await page.click('#rs-no'); await page.click('#rs'); await page.click('#rs-yes');
