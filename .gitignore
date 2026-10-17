@@ -1,0 +1,8 @@
+node_modules/
+test-output/
+.DS_Store
+# signing keys and secrets: never commit
+*.jks
+*.keystore
+*.p12
+android/keystore.properties

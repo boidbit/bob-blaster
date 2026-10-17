@@ -1,0 +1,24 @@
+{
+  "name": "blob-blaster",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Blob Blaster: a one-thumb arcade shooter. Web game in www/, packaged for Android with Capacitor.",
+  "scripts": {
+    "sync": "cap sync android",
+    "assets": "capacitor-assets generate --android --iconBackgroundColor '#15101F' --splashBackgroundColor '#15101F' --splashBackgroundColorDark '#15101F'",
+    "serve": "npx serve www -l 5173",
+    "apk:debug": "cap sync android && cd android && ./gradlew assembleDebug",
+    "aab:release": "cap sync android && cd android && ./gradlew bundleRelease",
+    "store:assets": "node tools/store-assets.mjs"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "^8.5.3"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.5.3",
+    "playwright-core": "^1.64.1"
+  }
+}

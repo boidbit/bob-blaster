@@ -1,0 +1,59 @@
+name: Android build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      HAS_KEY: ${{ secrets.UPLOAD_KEYSTORE_BASE64 != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install and sync web assets into the Android project
+        run: |
+          npm ci
+          npx cap sync android
+
+      - name: Build debug APK (installable on any phone for testing)
+        working-directory: android
+        run: ./gradlew assembleDebug -PversionCode=${{ github.run_number }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: blob-blaster-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+
+      # Signed Play Store bundle: only runs when you add the 4 secrets described in PLAY_STORE.md
+      - name: Build signed release AAB
+        if: ${{ env.HAS_KEY == 'true' }}
+        working-directory: android
+        run: |
+          echo "${{ secrets.UPLOAD_KEYSTORE_BASE64 }}" | base64 -d > upload.jks
+          cat > keystore.properties <<PROPS
+          storeFile=upload.jks
+          storePassword=${{ secrets.UPLOAD_KEYSTORE_PASSWORD }}
+          keyAlias=${{ secrets.UPLOAD_KEY_ALIAS }}
+          keyPassword=${{ secrets.UPLOAD_KEY_PASSWORD }}
+          PROPS
+          ./gradlew bundleRelease -PversionCode=${{ github.run_number }}
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ hashFiles('android/app/build/outputs/bundle/release/*.aab') != '' }}
+        with:
+          name: blob-blaster-release-aab
+          path: android/app/build/outputs/bundle/release/*.aab

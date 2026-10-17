@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Blob Blaster</string>
+    <string name="title_activity_main">Blob Blaster</string>
+    <string name="package_name">com.boidbit.blobblaster</string>
+    <string name="custom_url_scheme">com.boidbit.blobblaster</string>
+</resources>
