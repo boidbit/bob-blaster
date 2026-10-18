@@ -33,26 +33,26 @@ html,body{margin:0;background:var(--bg);color:var(--paper);height:100%;overflow:
 body{font:14px/1.3 var(--body);-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 /* Full screen: the HUD sits at the top (below the status bar / camera cut-out), the play field fills everything under it
    edge to edge. resize() sizes the field: full width, and as tall as the screen is. */
-.app{position:fixed;inset:0;display:flex;flex-direction:column}
-.wrap{flex:1;min-height:0;display:flex;justify-content:center;align-items:flex-end}
+.app{position:fixed;inset:0}
+.wrap{position:absolute;inset:0;display:flex;justify-content:center;align-items:flex-end}
 .ol{color:#fff;text-shadow:2px 0 0 var(--ink),-2px 0 0 var(--ink),0 2px 0 var(--ink),0 -2px 0 var(--ink),2px 2px 0 var(--ink),-2px 2px 0 var(--ink),2px -2px 0 var(--ink),-2px -2px 0 var(--ink),0 4px 0 var(--ink)}
 
 /* HUD */
-.hud{flex:none;display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;gap:8px;width:100%;max-width:480px;margin:0 auto;
+.hud{position:absolute;z-index:3;top:0;left:50%;transform:translateX(-50%);pointer-events:none;display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;gap:8px;width:100%;max-width:480px;
   padding:calc(8px + var(--sat)) max(14px,var(--sar)) 12px max(14px,var(--sal))}
 .pill{background:var(--paper);color:var(--ink);border:3px solid var(--ink);border-radius:12px;padding:1px 10px;font:400 18px var(--display);
   box-shadow:0 3px 0 var(--ink);display:flex;align-items:center;gap:6px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .coin-ic{width:14px;height:14px;border-radius:50%;background:var(--gold);border:2px solid var(--ink);flex:none}
 .bar{height:18px;border-radius:10px;background:var(--track);border:3px solid var(--ink);overflow:hidden;box-shadow:0 3px 0 var(--ink)}
 .bar div{height:100%;width:0;background:var(--gold);box-shadow:inset 0 -4px 0 rgba(0,0,0,.15),inset 0 3px 0 rgba(255,255,255,.45)}
-.sq{width:38px;height:38px;border-radius:11px;background:var(--paper);border:3px solid var(--ink);box-shadow:0 3px 0 var(--ink);display:grid;place-items:center;cursor:pointer;padding:0}
+.sq{pointer-events:auto;width:38px;height:38px;border-radius:11px;background:var(--paper);border:3px solid var(--ink);box-shadow:0 3px 0 var(--ink);display:grid;place-items:center;cursor:pointer;padding:0}
 .sq:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
 .sq svg{width:22px;height:22px}
 
 /* Stage */
-.stage{position:relative;flex:none;overflow:hidden;background:#1B1030;border-radius:22px 22px 0 0;box-shadow:0 -3px 0 var(--ink)}
+.stage{position:relative;flex:none;overflow:hidden;background:#1B1030}
 .stage canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block}
-.overlay{position:absolute;inset:0;display:grid;grid-template:minmax(0,1fr) / minmax(0,1fr);place-items:center;padding:14px;background:rgba(10,4,20,.45)}
+.overlay{position:absolute;inset:0;display:grid;grid-template:minmax(0,1fr) / minmax(0,1fr);place-items:center;padding:calc(62px + var(--sat)) 14px 14px;background:rgba(10,4,20,.45)}
 
 /* Panels */
 /* The card is laid out at 300px and scaled down with --ui (set in fitCard) when the play field is smaller */
@@ -127,7 +127,8 @@ button:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
 <script>
 (()=>{
 const LW=360,G=850,TAU=Math.PI*2;
-let LH=600,GROUND=LH-72;   // LH grows on tall phones so the field fills the whole screen (see resize)
+const hudEl=document.querySelector('.hud');
+let LH=600,GROUND=LH-72,HUDB=60;   // HUDB = y just under the HUD bar, in field units   // LH grows on tall phones so the field fills the whole screen (see resize)
 const rnd=(a,b)=>a+Math.random()*(b-a);
 const RAD=[14,21,30,41];
 const BOUNCE=[190,250,300,350].map(h=>Math.sqrt(2*G*h));
@@ -151,7 +152,7 @@ S.set=Object.assign({sfx:true,vib:true,shake:true,bg:'random'},S.set||{});
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
 /* The cannon never changes: same fire rate and damage on every level. Levels get harder because the blobs do
    (more of them, bigger, more HP) -- see levelShape(). The functions keep a level argument so tools can call them. */
-const FIRE_RATE=9,DAMAGE=1;
+const FIRE_RATE=9*.6,DAMAGE=.6;   // 40% below the old 9 shots/s and 1 damage/shot
 const fireRate=l=>FIRE_RATE, damage=l=>DAMAGE;
 
 /* ---------- audio ---------- */
@@ -354,7 +355,7 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden){firing=fal
 function addShake(n){if(S.set.shake)shake=Math.min(20,shake+n)}
 function burst(x,y,c,n,sp,sz){for(let i=0;i<n;i++){const a=Math.random()*TAU,v=rnd(sp*.3,sp);parts.push({k:'dot',x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v-90,life:1,dec:rnd(1.1,1.8),r:rnd(sz*.5,sz),c});}}
 function hit(b,u){
-  const dmg=damage(levelPlayed),before=b.hp;b.hp-=dmg;dealt+=Math.min(dmg,before);b.pu=1;b.fl=1;
+  const dmg=damage(levelPlayed),before=b.hp;b.hp=Math.round((b.hp-dmg)*10)/10;dealt+=Math.min(dmg,before);b.pu=1;b.fl=1;
   parts.push({k:'spark',x:u.x,y:b.y+b.r*.85,life:1});
   if(b.hp<=0)pop(b);
 }
@@ -497,8 +498,9 @@ function draw(dt){
   ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';
   ctx.restore();
 
-  if(state!=='menu')for(let i=0;i<3;i++)heart(22+i*26,24,i<lives);
-  if(combo>=2&&comboT>0){const s=1+comboPop*.45;ctx.save();ctx.translate(LW/2,66);ctx.scale(s,s);ctx.rotate(-.04);ctx.globalAlpha=Math.min(1,comboT*2);
+  HUDB=Math.round(hudEl.offsetHeight/k);
+  if(state!=='menu')for(let i=0;i<3;i++)heart(22+i*26,HUDB+16,i<lives);
+  if(combo>=2&&comboT>0){const s=1+comboPop*.45;ctx.save();ctx.translate(LW/2,HUDB+58);ctx.scale(s,s);ctx.rotate(-.04);ctx.globalAlpha=Math.min(1,comboT*2);
     outlined(`COMBO x${combo}`,0,0,26,'#FFD23F',7);ctx.restore();}
   if(state==='play'&&!fired){ctx.globalAlpha=.65+.35*Math.sin(time*5);outlined('HOLD & DRAG',LW/2,GROUND-118,26,'#FFFFFF',7);
     outlined('to move and fire',LW/2,GROUND-90,16,'#FFFFFF',5);ctx.globalAlpha=1;}
