@@ -15,9 +15,10 @@ android {
         applicationId "com.boidbit.blobblaster"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        // CI passes -PversionCode=<n>. Every upload to Google Play needs a higher versionCode than the one before.
+        // CI passes -PversionCode=<GitHub run number>. Every upload to Google Play needs a higher versionCode than the one before.
+        // The visible version follows it: build 7 -> "1.0.7". Change the "1.0" prefix for bigger releases.
         versionCode project.hasProperty('versionCode') ? project.property('versionCode').toInteger() : 1
-        versionName "1.0.0"
+        versionName "1.0.${versionCode}"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

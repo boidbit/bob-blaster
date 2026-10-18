@@ -41,20 +41,8 @@ jobs:
           name: blob-blaster-debug-apk
           path: android/app/build/outputs/apk/debug/*.apk
 
-      # Publishes the APK as a GitHub Release so it can be downloaded straight from a phone (Releases section of the repo)
-      - name: Publish APK as GitHub Release
-        if: github.event_name != 'pull_request'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          cp android/app/build/outputs/apk/debug/app-debug.apk blob-blaster-build${{ github.run_number }}.apk
-          gh release create "build-${{ github.run_number }}" blob-blaster-build${{ github.run_number }}.apk \
-            --title "Blob Blaster build ${{ github.run_number }}" \
-            --notes "Debug APK for phone testing. Download the .apk below on your Android phone and install it (allow 'install unknown apps' for your browser)." \
-            --prerelease
-
-      # Signed Play Store bundle: only runs when you add the 4 secrets described in PLAY_STORE.md
-      - name: Build signed release AAB
+      # Signed Play Store bundle + signed APK: only runs when you add the 4 secrets described in PLAY_STORE.md
+      - name: Build signed release AAB and APK
         if: ${{ env.HAS_KEY == 'true' }}
         working-directory: android
         run: |
@@ -65,10 +53,29 @@ jobs:
           keyAlias=${{ secrets.UPLOAD_KEY_ALIAS }}
           keyPassword=${{ secrets.UPLOAD_KEY_PASSWORD }}
           PROPS
-          ./gradlew bundleRelease -PversionCode=${{ github.run_number }}
+          ./gradlew bundleRelease assembleRelease -PversionCode=${{ github.run_number }}
 
       - uses: actions/upload-artifact@v4
         if: ${{ hashFiles('android/app/build/outputs/bundle/release/*.aab') != '' }}
         with:
           name: blob-blaster-release-aab
           path: android/app/build/outputs/bundle/release/*.aab
+
+      # Publishes the build as a GitHub Release so it can be downloaded straight from a phone (Releases section of the repo).
+      # Version 1.0.<run number>, versionCode <run number>. With the signing secrets it also carries the signed APK and the Play Store AAB.
+      - name: Publish GitHub Release
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V=1.0.${{ github.run_number }}
+          cp android/app/build/outputs/apk/debug/app-debug.apk blob-blaster-$V-debug.apk
+          FILES="blob-blaster-$V-debug.apk"
+          NOTES="Version $V (versionCode ${{ github.run_number }}). Download an .apk below on your Android phone and install it (allow 'install unknown apps' for your browser)."
+          if [ -f android/app/build/outputs/bundle/release/app-release.aab ]; then
+            cp android/app/build/outputs/apk/release/app-release.apk blob-blaster-$V.apk
+            cp android/app/build/outputs/bundle/release/app-release.aab blob-blaster-$V.aab
+            FILES="blob-blaster-$V.apk blob-blaster-$V.aab $FILES"
+            NOTES="$NOTES blob-blaster-$V.aab is the signed bundle to upload to Google Play; blob-blaster-$V.apk is the same build signed for direct install."
+          fi
+          gh release create "v$V" $FILES --title "Blob Blaster $V" --notes "$NOTES" --prerelease
