@@ -9,6 +9,7 @@
     "serve": "npx serve www -l 5173",
     "apk:debug": "cap sync android && cd android && ./gradlew assembleDebug",
     "aab:release": "cap sync android && cd android && ./gradlew bundleRelease",
+    "web": "node -e \"require('fs').cpSync('www','docs/play',{recursive:true})\"",
     "store:assets": "node tools/store-assets.mjs"
   },
   "dependencies": {
