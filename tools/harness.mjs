@@ -21,12 +21,12 @@ window.__bb={
   startLevel(n){ if(n) S.level=n; startLevel(); }, setFiring(v){firing=v;fired=true}, setTx(x){cannon.tx=x},
   setThemeById(id){S.set.bg=id;pickTheme();}, openSettings, closeSettings, goBack, toMenu,
   setExit(fn){exitApp=fn},
-  fireRate, damage, levelHP, THEMES, GROUND, LW, LH, G, RAD, BOUNCE, levelPlayed(){return levelPlayed}
+  fireRate, damage, levelHP, THEMES, get GROUND(){return GROUND}, LW, get LH(){return LH}, G, RAD, BOUNCE, levelPlayed(){return levelPlayed}
 };
 })();`;
 
 export async function launch({ width = 360, height = 640, dpr = 1, manualLoop = true } = {}) {
-  const src = fs.readFileSync(path.join(root, 'www/index.html'), 'utf8');
+  const src = fs.readFileSync(process.env.GAME_FILE || path.join(root, 'www/index.html'), 'utf8');
   if (!src.includes(NEEDLE)) throw new Error('harness: could not find the end of the game script to patch');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bb-'));
   fs.writeFileSync(path.join(dir, 'index.html'), src.replace(NEEDLE, HOOK));

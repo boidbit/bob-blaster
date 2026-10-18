@@ -2,7 +2,7 @@
 
 Arcade shooter: slide the cannon, pop the bouncing number blobs. Single-file HTML5 canvas game (`www/index.html`) wrapped for Android with [Capacitor](https://capacitorjs.com).
 
-The cannon's **fire rate and damage rise automatically with the level** — there's no shop. Formulas are in the game file (`fireRate`, `damage`); `tools/balance-sim.mjs` plays it with a bot to check difficulty stays winnable.
+The cannon is **the same on every level** (9 shots/sec, 1 damage) and there is no shop. Levels get harder because the blobs do: more of them, bigger, with more total HP (`hpTarget` / `levelShape` in the game file). `tools/balance-sim.mjs` plays levels with a bot; roughly it wins ~100% of levels 1-3, ~80% around level 10, ~40% at level 20 and almost never past level 35.
 
 ## Develop
 ```bash

@@ -31,13 +31,15 @@
 [hidden]{display:none!important}
 html,body{margin:0;background:var(--bg);color:var(--paper);height:100%;overflow:hidden;overscroll-behavior:none;touch-action:manipulation}
 body{font:14px/1.3 var(--body);-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
-/* The play field fills the whole screen. Wider-than-phone screens (tablets, desktop) get a centred portrait column. */
-.app{position:fixed;inset:0;display:flex;justify-content:center}
+/* Full screen: the HUD sits at the top (below the status bar / camera cut-out), the play field fills everything under it
+   edge to edge. resize() sizes the field: full width, and as tall as the screen is. */
+.app{position:fixed;inset:0;display:flex;flex-direction:column}
+.wrap{flex:1;min-height:0;display:flex;justify-content:center;align-items:flex-end}
 .ol{color:#fff;text-shadow:2px 0 0 var(--ink),-2px 0 0 var(--ink),0 2px 0 var(--ink),0 -2px 0 var(--ink),2px 2px 0 var(--ink),-2px 2px 0 var(--ink),2px -2px 0 var(--ink),-2px -2px 0 var(--ink),0 4px 0 var(--ink)}
 
 /* HUD */
-.hud{position:absolute;z-index:2;top:calc(8px + var(--sat));left:max(12px,var(--sal));right:max(12px,var(--sar));
-  display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;gap:8px}
+.hud{flex:none;display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;gap:8px;width:100%;max-width:480px;margin:0 auto;
+  padding:calc(8px + var(--sat)) max(14px,var(--sar)) 12px max(14px,var(--sal))}
 .pill{background:var(--paper);color:var(--ink);border:3px solid var(--ink);border-radius:12px;padding:1px 10px;font:400 18px var(--display);
   box-shadow:0 3px 0 var(--ink);display:flex;align-items:center;gap:6px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .coin-ic{width:14px;height:14px;border-radius:50%;background:var(--gold);border:2px solid var(--ink);flex:none}
@@ -48,11 +50,9 @@ body{font:14px/1.3 var(--body);-webkit-tap-highlight-color:transparent;user-sele
 .sq svg{width:22px;height:22px}
 
 /* Stage */
-/* At most 360:600 wide, so the game world (360 units across, at least 600 tall) always fits; taller screens show more sky */
-.stage{position:relative;height:100%;width:min(100%, calc(100vh * .6));width:min(100%, calc(100dvh * .6));overflow:hidden;background:#1B1030}
+.stage{position:relative;flex:none;overflow:hidden;background:#1B1030;border-radius:22px 22px 0 0;box-shadow:0 -3px 0 var(--ink)}
 .stage canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block}
-.overlay{position:absolute;inset:0;display:grid;grid-template:minmax(0,1fr) / minmax(0,1fr);place-items:center;background:rgba(10,4,20,.45);
-  padding:calc(62px + var(--sat)) max(14px,var(--sar)) calc(14px + var(--sab)) max(14px,var(--sal))}
+.overlay{position:absolute;inset:0;display:grid;grid-template:minmax(0,1fr) / minmax(0,1fr);place-items:center;padding:14px;background:rgba(10,4,20,.45)}
 
 /* Panels */
 /* The card is laid out at 300px and scaled down with --ui (set in fitCard) when the play field is smaller */
@@ -81,15 +81,6 @@ body{font:14px/1.3 var(--body);-webkit-tap-highlight-color:transparent;user-sele
 .btn.blue{background:var(--blue)} .btn.red{background:var(--red)} .btn.small{font-size:17px;padding:5px 12px 7px;border-radius:12px}
 .btnrow{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 
-/* Cannon stats (they grow by themselves with the level, so this is display only) */
-.power{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.pw{background:#fff;border:3px solid var(--ink);border-radius:14px;padding:6px 6px 8px;color:var(--ink);display:grid;gap:1px;justify-items:center;min-width:0}
-.pw .t{font:400 15px var(--display);color:var(--muted)}
-.pw .v{font:800 17px var(--body);font-variant-numeric:tabular-nums;white-space:nowrap}
-.pw .v small{font:700 11px var(--body);color:var(--muted)}
-.pw .v s{text-decoration:none;color:var(--muted);font-weight:700}
-.pw .v em{font-style:normal;color:#14803B}
-.pw.up{background:#DFF8E6;box-shadow:0 3px 0 var(--ink)}
 .tip{margin:0;font:600 13px/1.35 var(--body);color:var(--muted)}
 
 /* Settings: the list scrolls, the button row stays pinned at the bottom so DONE / RESUME is always visible */
@@ -116,9 +107,6 @@ button:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
 </head>
 <body>
 <div class="app">
-<div class="stage" id="stage">
-  <canvas id="cv" aria-label="Game field. Hold and drag to move the cannon and shoot."></canvas>
-  <div class="overlay" id="ov"></div>
   <div class="hud">
     <div class="pill" id="lvl">LV 1</div>
     <div class="bar" aria-label="Level progress"><div id="prog"></div></div>
@@ -130,15 +118,16 @@ button:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
         <circle cx="12" cy="12" r="3.2" fill="#FFF3E2"/></svg>
     </button>
   </div>
-</div>
+  <div class="wrap" id="wrap"><div class="stage" id="stage">
+    <canvas id="cv" aria-label="Game field. Hold and drag to move the cannon and shoot."></canvas>
+    <div class="overlay" id="ov"></div>
+  </div></div>
 </div>
 
 <script>
 (()=>{
-const LW=360,LH=600,GROUND=LH-72,G=850,TAU=Math.PI*2;
-/* The world is 360 wide with the ground near y=600. On screens taller than 360:600 the view reaches above y=0:
-   TOP is the y at the top edge of the screen (0 or negative), VH the visible height, HUDB the y just below the HUD bar. */
-let TOP=0,VH=LH,HUDB=40;
+const LW=360,G=850,TAU=Math.PI*2;
+let LH=600,GROUND=LH-72;   // LH grows on tall phones so the field fills the whole screen (see resize)
 const rnd=(a,b)=>a+Math.random()*(b-a);
 const RAD=[14,21,30,41];
 const BOUNCE=[190,250,300,350].map(h=>Math.sqrt(2*G*h));
@@ -160,17 +149,10 @@ try{const s=JSON.parse(localStorage.getItem(KEY)||'null');if(s&&typeof s.level==
 delete S.rate;delete S.dmg;                       // older builds stored manual upgrades here
 S.set=Object.assign({sfx:true,vib:true,shake:true,bg:'random'},S.set||{});
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
-/* The cannon grows with the level, nothing to buy.
-   Fire rate: 9/s at level 1, +1 every 3 levels, capped at 16/s from level 22.
-   Base damage: sized so a level's blobs take about 9 seconds of non-stop hits (levelHP / (fire rate x 9)).
-   It never goes down. Roughly: level 1-2 = 1, 3-4 = 2, 5-6 = 4, 10 = 7, 20 = 10, 30 = 14, 50 = 22.
-   The cannon deals POWER (70%) of that, to one decimal: 0.7, 1.4, 2.8, 4.9, 7, 9.8, 15.4. */
-const fireRate=l=>Math.min(16,9+Math.floor((l-1)/3));
-const DMG_SECONDS=9,POWER=.7,_dmg=[0,1];
-function damage(l){
-  while(_dmg.length<=l){const n=_dmg.length;_dmg.push(Math.max(_dmg[n-1],Math.ceil(levelHP(n)/(fireRate(n)*DMG_SECONDS))));}
-  return Math.round(_dmg[Math.max(1,l)]*POWER*10)/10;
-}
+/* The cannon never changes: same fire rate and damage on every level. Levels get harder because the blobs do
+   (more of them, bigger, more HP) -- see levelShape(). The functions keep a level argument so tools can call them. */
+const FIRE_RATE=9,DAMAGE=1;
+const fireRate=l=>FIRE_RATE, damage=l=>DAMAGE;
 
 /* ---------- audio ---------- */
 let ac=null,noiseBuf=null,lastPew=0;
@@ -190,7 +172,6 @@ const sfx={
   hurt(){osc('sawtooth',260,90,.3,.12);noise(.2,.2,600)},
   boom(){noise(.7,.4,700);osc('sawtooth',300,40,.8,.15)},
   win(){[523,659,784,1046,1318].forEach((f,i)=>osc('triangle',f,f,.28,.12,i*.08))},
-  up(){osc('triangle',660,990,.12,.12);osc('triangle',990,1480,.14,.1,.1)},
   click(){osc('triangle',520,700,.06,.08)}
 };
 const buzz=ms=>{if(!S.set.vib)return;try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}};
@@ -201,10 +182,10 @@ function glowSprite(color){const c=document.createElement('canvas');c.width=c.he
 const GLOW=COL.map(c=>glowSprite(c.b)),G_GOLD=glowSprite('#FFD36E'),G_WHITE=glowSprite('#FFFFFF'),G_CYAN=glowSprite('#5CF2FF'),G_ORANGE=glowSprite('#FF7A1A');
 
 /* ---------- backgrounds ---------- */
-function skyGrad(g,stops){const s=g.createLinearGradient(0,TOP,0,GROUND);stops.forEach((c,i)=>s.addColorStop(i/(stops.length-1),c));g.fillStyle=s;g.fillRect(0,TOP,LW,GROUND-TOP);}
+function skyGrad(g,stops){const s=g.createLinearGradient(0,0,0,GROUND);stops.forEach((c,i)=>s.addColorStop(i/(stops.length-1),c));g.fillStyle=s;g.fillRect(0,0,LW,GROUND);}
 function groundGrad(g,a,b){const s=g.createLinearGradient(0,GROUND,0,LH);s.addColorStop(0,a);s.addColorStop(1,b);g.fillStyle=s;g.fillRect(0,GROUND,LW,LH-GROUND);}
 function ridge(g,base,amp,col,f1,f2,ph=0){g.fillStyle=col;g.beginPath();g.moveTo(0,GROUND+1);for(let x=0;x<=LW;x+=4)g.lineTo(x,base-amp*(.5+.5*Math.sin(x*f1+ph))*(.6+.4*Math.sin(x*f2+ph*.7)));g.lineTo(LW,GROUND+1);g.closePath();g.fill();}
-function halo(g,x,y,r0,r1,col,a){const h=g.createRadialGradient(x,y,r0,x,y,r1);h.addColorStop(0,hexA(col,a));h.addColorStop(1,hexA(col,0));g.fillStyle=h;g.fillRect(0,TOP,LW,LH-TOP);}
+function halo(g,x,y,r0,r1,col,a){const h=g.createRadialGradient(x,y,r0,x,y,r1);h.addColorStop(0,hexA(col,a));h.addColorStop(1,hexA(col,0));g.fillStyle=h;g.fillRect(0,0,LW,LH);}
 function peaks(g,base,pts,col,cap){
   g.fillStyle=col;g.beginPath();g.moveTo(0,GROUND+1);g.lineTo(0,base);pts.forEach(p=>g.lineTo(p[0],p[1]));g.lineTo(LW,base);g.lineTo(LW,GROUND+1);g.closePath();g.fill();
   if(!cap)return;g.fillStyle=cap;
@@ -215,15 +196,15 @@ function peaks(g,base,pts,col,cap){
 const THEMES=[
   {id:'night',name:'Neon Night',sw:['#2A0F5C','#9C2F86'],glow:.9,line:'#FF8CC8',dust:'#B98CFF',
     build(g){skyGrad(g,['#0C0629','#2A0F5C','#5A1A78','#9C2F86']);
-      const px=282,py=TOP+118,pr=54;halo(g,px,py,pr*.8,pr*2.4,'#5CF2FF',.22);
+      const px=282,py=118,pr=54;halo(g,px,py,pr*.8,pr*2.4,'#5CF2FF',.22);
       g.save();g.translate(px,py);g.rotate(-.35);g.strokeStyle='rgba(255,214,140,.55)';g.lineWidth=6;g.beginPath();g.ellipse(0,0,pr*1.85,pr*.32,0,Math.PI,TAU);g.stroke();g.restore();
       const pg=g.createRadialGradient(px-pr*.4,py-pr*.45,pr*.1,px,py,pr);pg.addColorStop(0,'#A6F7FF');pg.addColorStop(.5,'#4C6BE0');pg.addColorStop(1,'#1E1260');
       g.fillStyle=pg;g.beginPath();g.arc(px,py,pr,0,TAU);g.fill();
       g.save();g.translate(px,py);g.rotate(-.35);g.strokeStyle='rgba(255,214,140,.8)';g.lineWidth=6;g.beginPath();g.ellipse(0,0,pr*1.85,pr*.32,0,0,Math.PI);g.stroke();g.restore();
-      g.fillStyle='#FFB6D9';g.beginPath();g.arc(70,TOP+70,9,0,TAU);g.fill();
+      g.fillStyle='#FFB6D9';g.beginPath();g.arc(70,70,9,0,TAU);g.fill();
       const hz=g.createLinearGradient(0,GROUND-120,0,GROUND);hz.addColorStop(0,'rgba(255,94,180,0)');hz.addColorStop(1,'rgba(255,120,170,.45)');g.fillStyle=hz;g.fillRect(0,GROUND-120,LW,120);
       ridge(g,GROUND-6,58,'#3A1468',.021,.007,1.3);ridge(g,GROUND,34,'#24104A',.034,.013,.4);groundGrad(g,'#2A0F55','#0E0624');},
-    init(){return Array.from({length:60},(_,i)=>({x:Math.random()*LW,y:rnd(TOP,GROUND-80),r:Math.random()*1.4+.3,a:Math.random()*6,sp:i<20?6:2}))},
+    init(){return Array.from({length:60},(_,i)=>({x:Math.random()*LW,y:Math.random()*(GROUND-80),r:Math.random()*1.4+.3,a:Math.random()*6,sp:i<20?6:2}))},
     anim(dt,A){for(const s of A){s.x-=s.sp*dt;if(s.x<0)s.x+=LW;s.a+=dt*2;ctx.fillStyle=`rgba(255,243,226,${.25+.45*Math.abs(Math.sin(s.a))})`;ctx.fillRect(s.x,s.y,s.r,s.r);}
       ctx.globalCompositeOperation='lighter';const vx=LW/2,vy=GROUND-70,H=LH-GROUND;ctx.lineWidth=1;
       for(let i=0;i<9;i++){const f=(i+gridT)/9,y=GROUND+H*f*f;ctx.strokeStyle=`rgba(255,94,180,${.08+.45*f})`;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(LW,y);ctx.stroke();}
@@ -244,38 +225,38 @@ const THEMES=[
     anim(dt,A){ctx.fillStyle='rgba(255,236,200,.55)';for(const p of A){p.x+=p.sp*dt;if(p.x>LW)p.x=0;ctx.fillRect(p.x,p.y+Math.sin(p.x*.05)*4,p.r,p.r);}}},
   {id:'ocean',name:'Deep Ocean',sw:['#0E6E9C','#04193A'],glow:.8,line:'#9BE7FF',dust:'#9BE7FF',
     build(g){skyGrad(g,['#1386B5','#0A5A8A','#063A66','#04203F']);
-      g.fillStyle='rgba(190,245,255,.07)';[[40,90],[150,70],[250,110]].forEach(([x,w])=>{g.beginPath();g.moveTo(x,TOP);g.lineTo(x+w,TOP);g.lineTo(x+w*2.2,GROUND);g.lineTo(x+w*.6,GROUND);g.closePath();g.fill();});
+      g.fillStyle='rgba(190,245,255,.07)';[[40,90],[150,70],[250,110]].forEach(([x,w])=>{g.beginPath();g.moveTo(x,0);g.lineTo(x+w,0);g.lineTo(x+w*2.2,GROUND);g.lineTo(x+w*.6,GROUND);g.closePath();g.fill();});
       ridge(g,GROUND-14,70,'#0A3558',.016,.007,3);ridge(g,GROUND,30,'#072A47',.03,.011,1);
       g.fillStyle='#0C2E44';g.beginPath();g.ellipse(300,GROUND,60,26,0,Math.PI,TAU);g.fill();g.beginPath();g.ellipse(50,GROUND,44,20,0,Math.PI,TAU);g.fill();
       groundGrad(g,'#3D7A80','#173B48');g.fillStyle='rgba(255,255,255,.12)';for(let i=0;i<40;i++){g.beginPath();g.arc(Math.random()*LW,GROUND+8+Math.random()*60,rnd(1,2.5),0,TAU);g.fill();}},
-    init(){return Array.from({length:24},()=>({x:Math.random()*LW,y:rnd(TOP,GROUND),r:rnd(1.5,5),sp:rnd(18,45),ph:Math.random()*6}))},
+    init(){return Array.from({length:24},()=>({x:Math.random()*LW,y:Math.random()*GROUND,r:rnd(1.5,5),sp:rnd(18,45),ph:Math.random()*6}))},
     anim(dt,A){
       ctx.lineCap='round';[[18,90],[34,60],[312,80],[334,110],[150,46]].forEach(([x,h],i)=>{ctx.strokeStyle=i%2?'#1F9A78':'#2DBA8C';ctx.lineWidth=6;
         ctx.beginPath();ctx.moveTo(x,GROUND+2);ctx.quadraticCurveTo(x+Math.sin(time*1.6+i)*14,GROUND-h*.5,x+Math.sin(time*1.6+i+1)*10,GROUND-h);ctx.stroke();});
       ctx.strokeStyle='rgba(210,250,255,.7)';ctx.lineWidth=1.2;ctx.fillStyle='rgba(210,250,255,.12)';
-      for(const b of A){b.y-=b.sp*dt;b.ph+=dt*3;if(b.y<TOP-10){b.y=GROUND;b.x=Math.random()*LW;}const x=b.x+Math.sin(b.ph)*4;ctx.beginPath();ctx.arc(x,b.y,b.r,0,TAU);ctx.fill();ctx.stroke();}}},
+      for(const b of A){b.y-=b.sp*dt;b.ph+=dt*3;if(b.y<-10){b.y=GROUND;b.x=Math.random()*LW;}const x=b.x+Math.sin(b.ph)*4;ctx.beginPath();ctx.arc(x,b.y,b.r,0,TAU);ctx.fill();ctx.stroke();}}},
   {id:'snow',name:'Aurora Peaks',sw:['#1B2E5C','#E8F1FF'],glow:.7,line:'#FFFFFF',dust:'#FFFFFF',
     build(g){skyGrad(g,['#070E26','#12224E','#2A3F78','#4F64A0']);
       peaks(g,330,[[0,330],[50,262],[95,300],[150,214],[210,292],[262,236],[318,300],[360,268]],'#33467E','#DCE8FF');
       peaks(g,430,[[0,420],[40,372],[92,430],[142,352],[204,440],[252,384],[304,428],[360,376]],'#1E2C5C','#EEF4FF');
       groundGrad(g,'#EEF4FF','#A9BEE0');g.fillStyle='rgba(120,150,200,.25)';for(let i=0;i<6;i++){g.beginPath();g.ellipse(rnd(0,LW),GROUND+rnd(14,60),rnd(20,50),4,0,0,TAU);g.fill();}},
-    init(){return Array.from({length:70},()=>({x:Math.random()*LW,y:rnd(TOP,LH),r:rnd(.8,2.6),sp:rnd(20,55),dr:Math.random()*6}))},
+    init(){return Array.from({length:70},()=>({x:Math.random()*LW,y:Math.random()*LH,r:rnd(.8,2.6),sp:rnd(20,55),dr:Math.random()*6}))},
     anim(dt,A){
       ctx.globalCompositeOperation='lighter';
       [['rgba(80,255,180,',90,0],['rgba(90,200,255,',130,2]].forEach(([c,y0,ph])=>{for(let w=0;w<3;w++){ctx.strokeStyle=c+(.10-w*.025)+')';ctx.lineWidth=18+w*14;ctx.beginPath();
-        for(let x=-10;x<=LW+10;x+=12)ctx.lineTo(x,TOP+y0+Math.sin(x*.018+time*.6+ph)*22+Math.sin(x*.05+time*.9)*6);ctx.stroke();}});
+        for(let x=-10;x<=LW+10;x+=12)ctx.lineTo(x,y0+Math.sin(x*.018+time*.6+ph)*22+Math.sin(x*.05+time*.9)*6);ctx.stroke();}});
       ctx.globalCompositeOperation='source-over';ctx.fillStyle='rgba(255,255,255,.85)';
-      for(const f of A){f.y+=f.sp*dt;f.dr+=dt;if(f.y>LH){f.y=TOP-5;f.x=Math.random()*LW;}ctx.beginPath();ctx.arc(f.x+Math.sin(f.dr)*8,f.y,f.r,0,TAU);ctx.fill();}}},
+      for(const f of A){f.y+=f.sp*dt;f.dr+=dt;if(f.y>LH){f.y=-5;f.x=Math.random()*LW;}ctx.beginPath();ctx.arc(f.x+Math.sin(f.dr)*8,f.y,f.r,0,TAU);ctx.fill();}}},
   {id:'meadow',name:'Sunny Meadow',sw:['#3FA9F5','#62C24F'],glow:.3,line:'#E9FFB8',dust:'#E9FFB8',
     build(g){skyGrad(g,['#2E9BEA','#62BDF6','#A6DDFF','#DDF4FF']);
-      halo(g,64,TOP+70,30,140,'#FFF6C0',.6);g.fillStyle='#FFF3A6';g.beginPath();g.arc(64,TOP+70,34,0,TAU);g.fill();
+      halo(g,64,70,30,140,'#FFF6C0',.6);g.fillStyle='#FFF3A6';g.beginPath();g.arc(64,70,34,0,TAU);g.fill();
       ridge(g,GROUND-20,50,'#8ED985',.017,.006,.5);
       const tree=(x,s)=>{g.fillStyle='#6B4226';g.fillRect(x-3*s,GROUND-30*s,6*s,24*s);g.fillStyle='#3E9B48';[[0,-40],[-10,-32],[10,-32]].forEach(([dx,dy])=>{g.beginPath();g.arc(x+dx*s,GROUND+dy*s,13*s,0,TAU);g.fill();});};
       tree(300,1.1);tree(330,.8);tree(30,.9);
       ridge(g,GROUND,26,'#5DB656',.03,.01,2.2);groundGrad(g,'#62C24F','#357F2F');
       g.strokeStyle='#4FA83F';g.lineWidth=2;g.lineCap='round';for(let i=0;i<34;i++){const x=Math.random()*LW,y=GROUND+rnd(8,66);g.beginPath();g.moveTo(x,y);g.lineTo(x-3,y-7);g.moveTo(x,y);g.lineTo(x+3,y-8);g.stroke();}
       ['#FFFFFF','#FFD23F','#FF7AA8'].forEach(c=>{g.fillStyle=c;for(let i=0;i<7;i++){g.beginPath();g.arc(Math.random()*LW,GROUND+rnd(10,64),2.5,0,TAU);g.fill();}});},
-    init(){return Array.from({length:5},(_,i)=>({x:i*90+rnd(0,40),y:rnd(TOP+90,220),s:rnd(.7,1.3),sp:rnd(6,14)}))},
+    init(){return Array.from({length:5},(_,i)=>({x:i*90+rnd(0,40),y:rnd(40,220),s:rnd(.7,1.3),sp:rnd(6,14)}))},
     anim(dt,A){ctx.fillStyle='rgba(255,255,255,.92)';for(const c of A){c.x+=c.sp*dt;if(c.x-60*c.s>LW)c.x=-60*c.s;
       [[0,0,18],[18,4,14],[-18,5,13],[8,-10,14],[-8,-6,12]].forEach(([dx,dy,r])=>{ctx.beginPath();ctx.arc(c.x+dx*c.s*1.4,c.y+dy*c.s,r*c.s*1.3,0,TAU);ctx.fill();});}}},
   {id:'lava',name:'Lava Land',sw:['#5C120E','#FF6A1A'],glow:.8,line:'#FF8A3D',dust:'#FFB070',
@@ -285,14 +266,14 @@ const THEMES=[
       g.strokeStyle='#FF6A1A';g.lineWidth=4;g.lineCap='round';g.beginPath();g.moveTo(240,252);g.quadraticCurveTo(232,330,248,400);g.stroke();
       g.lineWidth=3;g.beginPath();g.moveTo(262,252);g.quadraticCurveTo(275,320,265,370);g.stroke();
       ridge(g,GROUND,40,'#2A0A0A',.028,.012,1.7);groundGrad(g,'#2E100A','#120403');},
-    init(){const A=Array.from({length:34},()=>({x:Math.random()*LW,y:rnd(TOP,GROUND),r:rnd(1,2.8),sp:rnd(20,60),ph:Math.random()*6}));
+    init(){const A=Array.from({length:34},()=>({x:Math.random()*LW,y:Math.random()*GROUND,r:rnd(1,2.8),sp:rnd(20,60),ph:Math.random()*6}));
       A.cracks=Array.from({length:7},()=>{const x=rnd(10,LW-10),y=GROUND+rnd(8,60),pts=[[x,y]];for(let i=0;i<4;i++){const p=pts[pts.length-1];pts.push([p[0]+rnd(-22,22),p[1]+rnd(-6,8)]);}return pts;});return A;},
     anim(dt,A){
       ctx.globalCompositeOperation='lighter';ctx.lineCap='round';
       ctx.strokeStyle=`rgba(255,110,30,${.45+.3*Math.sin(time*2.4)})`;ctx.lineWidth=2.5;
       for(const c of A.cracks){ctx.beginPath();c.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.stroke();}
       ctx.globalAlpha=.5+.2*Math.sin(time*3);ctx.drawImage(G_ORANGE,170,200,160,110);ctx.globalAlpha=1;
-      for(const e of A){e.y-=e.sp*dt;e.ph+=dt*2;if(e.y<TOP-6){e.y=GROUND;e.x=Math.random()*LW;}const a=Math.max(0,Math.min(1,(e.y-TOP)/(GROUND-TOP)));
+      for(const e of A){e.y-=e.sp*dt;e.ph+=dt*2;if(e.y<-6){e.y=GROUND;e.x=Math.random()*LW;}const a=Math.max(0,Math.min(1,e.y/GROUND));
         ctx.fillStyle=`rgba(255,${140+Math.round(80*a)},40,${.3+.6*a})`;ctx.beginPath();ctx.arc(e.x+Math.sin(e.ph)*6,e.y,e.r,0,TAU);ctx.fill();}
       ctx.globalCompositeOperation='source-over';}},
 ];
@@ -315,22 +296,32 @@ function tot(h,s){return h+(s>0?2*tot(Math.ceil(h/2),s-1):0)}
 /* Level recipe: how many blobs, the biggest size, and the HP scale. The first blob is always the biggest size,
    each later one is the biggest size or one step smaller (50/50). */
 const SIZE_HP=[.4,.6,.8,1];
-function levelShape(L){return {count:Math.min(6,1+Math.ceil(L/2)),maxS:Math.min(3,Math.ceil(L/2)),base:5+L*3}}
+/* Difficulty. The cannon never gets stronger, so a level gets harder by having more blob HP to chew through:
+   the longer it takes, the longer you have to dodge. hpTarget(L) is the total HP (splits included) we aim for;
+   count / biggest size grow with the level and the per-blob HP is chosen to land on that target. */
+const hpTarget=L=>L<=8?10+8*L:74+7*(L-8);
+function levelShape(L){
+  const count=Math.min(6,1+Math.ceil(L/2)),maxS=Math.min(3,Math.ceil(L/2));
+  if(!_base[L]){let b=2;while(shapeHP(count,maxS,b)<hpTarget(L))b++;_base[L]=b;}
+  return {count,maxS,base:_base[L]};
+}
+const _base=[];
 const blobHP=(base,s)=>Math.max(1,Math.round(base*SIZE_HP[s]));
 function makeQueue(L){
   const {count,maxS,base}=levelShape(L),q=[];
   for(let i=0;i<count;i++){const s=i===0?maxS:Math.max(0,maxS-(Math.random()<.5?1:0));q.push({s,hp:blobHP(base,s)});}
   return q;
 }
-/* Average total HP of a level (all the splits included). The cannon's damage is derived from this. */
-function levelHP(L){
-  const {count,maxS,base}=levelShape(L);let sum=0;
+/* Average total HP of a level (all the splits included) for a given shape. */
+function shapeHP(count,maxS,base){
+  let sum=0;
   for(let i=0;i<count;i++){
     const opts=i===0?[[maxS,1]]:[[maxS,.5],[Math.max(0,maxS-1),.5]];
     for(const [s,p] of opts)sum+=p*tot(blobHP(base,s),s);
   }
   return sum;
 }
+const levelHP=L=>{const {count,maxS,base}=levelShape(L);return shapeHP(count,maxS,base)};
 function newBlob(s,hp,x,y,vx,vy){return {s,hp,max:hp,r:RAD[s],x,y,vx,vy,sq:0,pu:0,fl:0,ph:Math.random()*10}}
 function startLevel(){
   initAudio();pickTheme();
@@ -363,8 +354,7 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden){firing=fal
 function addShake(n){if(S.set.shake)shake=Math.min(20,shake+n)}
 function burst(x,y,c,n,sp,sz){for(let i=0;i<n;i++){const a=Math.random()*TAU,v=rnd(sp*.3,sp);parts.push({k:'dot',x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v-90,life:1,dec:rnd(1.1,1.8),r:rnd(sz*.5,sz),c});}}
 function hit(b,u){
-  // damage has one decimal; rounding keeps float error from leaving a blob at 0.0000001 HP
-  const dmg=damage(levelPlayed),before=b.hp;b.hp=Math.round((b.hp-dmg)*10)/10;dealt+=Math.min(dmg,before);b.pu=1;b.fl=1;
+  const dmg=damage(levelPlayed),before=b.hp;b.hp-=dmg;dealt+=Math.min(dmg,before);b.pu=1;b.fl=1;
   parts.push({k:'spark',x:u.x,y:b.y+b.r*.85,life:1});
   if(b.hp<=0)pop(b);
 }
@@ -384,7 +374,7 @@ function pop(b){
     for(const dir of [-1,1]){const nb=newBlob(s,h,b.x+dir*r*.5,Math.min(b.y,GROUND-r-4),dir*sp,-360);nb.pu=.6;nb.fl=.6;blobs.push(nb);}}
   if(!blobs.length&&!queue.length&&cannon.alive){
     slowT=1.2;banner=0;sfx.win();buzz([20,30,20,30,40]);
-    for(let i=0;i<70;i++)parts.push({k:'conf',x:rnd(0,LW),y:rnd(TOP-80,TOP-5),vx:rnd(-40,40),vy:rnd(60,160),rot:rnd(0,6),vr:rnd(-8,8),c:CONF[i%CONF.length],life:3});
+    for(let i=0;i<70;i++)parts.push({k:'conf',x:rnd(0,LW),y:rnd(-80,-5),vx:rnd(-40,40),vy:rnd(60,160),rot:rnd(0,6),vr:rnd(-8,8),c:CONF[i%CONF.length],life:3});
     pending={t:1.8,fn:levelClear};
   }
 }
@@ -428,7 +418,7 @@ function update(dt){
   cannon.recoil=Math.max(0,cannon.recoil-dt*14);cannon.flash=Math.max(0,cannon.flash-dt*16);
 
   for(let i=bullets.length-1;i>=0;i--){const u=bullets[i];u.y-=950*t;
-    if(u.y<TOP-20){bullets.splice(i,1);continue}
+    if(u.y<-20){bullets.splice(i,1);continue}
     for(const b of blobs){const dx=u.x-b.x,dy=u.y-b.y,rr=b.r+6;if(dx*dx+dy*dy<rr*rr){bullets.splice(i,1);hit(b,u);break;}}}
 
   for(const b of blobs){
@@ -437,13 +427,14 @@ function update(dt){
     if(b.x+b.r>LW&&b.vx>0){b.x=LW-b.r;b.vx*=-1}
     if(b.y+b.r>GROUND){b.y=GROUND-b.r;b.vy=-BOUNCE[b.s];b.sq=1;if(b.s>=2)addShake(1.5);
       for(let i=0;i<4;i++)parts.push({k:'dot',x:b.x+rnd(-b.r,b.r)*.6,y:GROUND,vx:rnd(-60,60),vy:rnd(-120,-40),life:.6,dec:2,r:2,c:theme.dust});}
-    if(b.y-b.r<TOP&&b.vy<0){b.vy*=-1}
+    if(b.y-b.r<0&&b.vy<0){b.vy*=-1}
     b.sq=Math.max(0,b.sq-dt*5);b.pu=Math.max(0,b.pu-dt*9);b.fl=Math.max(0,b.fl-dt*10);
     if(cannon.alive&&state==='play'&&inv<=0){
       const nx=Math.max(cannon.x-16,Math.min(b.x,cannon.x+16)),ny=Math.max(GROUND-32,Math.min(b.y,GROUND));
       const dx=b.x-nx,dy=b.y-ny;if(dx*dx+dy*dy<b.r*b.r*.6){hurt(b);if(!cannon.alive)break;}
     }
   }
+
 
   for(let i=parts.length-1;i>=0;i--){const p=parts[i];
     switch(p.k){
@@ -463,11 +454,11 @@ function update(dt){
 /* ---------- render ---------- */
 function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
 function glow(sp,x,y,r,a=1){ctx.globalAlpha=Math.min(1,a);ctx.drawImage(sp,x-r,y-r,r*2,r*2);}
-function buildBg(){bg=document.createElement('canvas');bg.width=cv.width;bg.height=cv.height;const g=bg.getContext('2d');g.setTransform(k*dpr,0,0,k*dpr,0,-TOP*k*dpr);theme.build(g);}
+function buildBg(){bg=document.createElement('canvas');bg.width=cv.width;bg.height=cv.height;const g=bg.getContext('2d');g.setTransform(k*dpr,0,0,k*dpr,0,0);theme.build(g);}
 function outlined(txt,x,y,size,fill,lw){ctx.font=`${size}px ${FONT}`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.lineJoin='round';
   ctx.lineWidth=lw;ctx.strokeStyle=INK;ctx.strokeText(txt,x,y+size*.08);ctx.strokeText(txt,x,y);ctx.fillStyle=fill;ctx.fillText(txt,x,y);}
 function draw(dt){
-  ctx.setTransform(k*dpr,0,0,k*dpr,0,-TOP*k*dpr);
+  ctx.setTransform(k*dpr,0,0,k*dpr,0,0);
   if(!bg)buildBg();
   ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(bg,0,0);ctx.restore();
   ctx.save();
@@ -506,16 +497,15 @@ function draw(dt){
   ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';
   ctx.restore();
 
-  if(state!=='menu')for(let i=0;i<3;i++)heart(22+i*26,HUDB+22,i<lives);
-  if(combo>=2&&comboT>0){const s=1+comboPop*.45;ctx.save();ctx.translate(LW/2,HUDB+64);ctx.scale(s,s);ctx.rotate(-.04);ctx.globalAlpha=Math.min(1,comboT*2);
+  if(state!=='menu')for(let i=0;i<3;i++)heart(22+i*26,24,i<lives);
+  if(combo>=2&&comboT>0){const s=1+comboPop*.45;ctx.save();ctx.translate(LW/2,66);ctx.scale(s,s);ctx.rotate(-.04);ctx.globalAlpha=Math.min(1,comboT*2);
     outlined(`COMBO x${combo}`,0,0,26,'#FFD23F',7);ctx.restore();}
   if(state==='play'&&!fired){ctx.globalAlpha=.65+.35*Math.sin(time*5);outlined('HOLD & DRAG',LW/2,GROUND-118,26,'#FFFFFF',7);
     outlined('to move and fire',LW/2,GROUND-90,16,'#FFFFFF',5);ctx.globalAlpha=1;}
   if(banner>=0){const e=Math.min(1,banner/.35),s=e<1?(1-Math.pow(1-e,3))*1.15:1.15-.15*Math.min(1,(banner-.35)/.2);
-    ctx.save();ctx.translate(LW/2,TOP+VH*.38);ctx.scale(s,s);ctx.rotate(-.06);outlined('CLEAR!',0,0,64,'#FFD23F',12);ctx.restore();}
-  const cy=TOP+VH/2;
-  if(flashRed>0){const g=ctx.createRadialGradient(LW/2,cy,VH*.25,LW/2,cy,VH*.75);g.addColorStop(0,'rgba(255,40,90,0)');g.addColorStop(1,`rgba(255,40,90,${flashRed*.55})`);ctx.fillStyle=g;ctx.fillRect(0,TOP,LW,VH);}
-  if(screenFlash>0){ctx.fillStyle=`rgba(255,255,255,${screenFlash})`;ctx.fillRect(0,TOP,LW,VH);}
+    ctx.save();ctx.translate(LW/2,LH*.38);ctx.scale(s,s);ctx.rotate(-.06);outlined('CLEAR!',0,0,64,'#FFD23F',12);ctx.restore();}
+  if(flashRed>0){const g=ctx.createRadialGradient(LW/2,LH/2,LH*.25,LW/2,LH/2,LH*.75);g.addColorStop(0,'rgba(255,40,90,0)');g.addColorStop(1,`rgba(255,40,90,${flashRed*.55})`);ctx.fillStyle=g;ctx.fillRect(0,0,LW,LH);}
+  if(screenFlash>0){ctx.fillStyle=`rgba(255,255,255,${screenFlash})`;ctx.fillRect(0,0,LW,LH);}
 }
 function star(x,y,s){ctx.beginPath();for(let i=0;i<8;i++){const a=i*Math.PI/4,r=i%2?s*.3:s;ctx.lineTo(x+Math.cos(a)*r,y+Math.sin(a)*r);}ctx.closePath();ctx.fill();}
 function heart(x,y,on){ctx.save();ctx.translate(x,y);const p=()=>{ctx.beginPath();ctx.moveTo(0,8);ctx.bezierCurveTo(-15,-2,-10,-15,0,-7);ctx.bezierCurveTo(10,-15,15,-2,0,8);ctx.closePath();};
@@ -574,25 +564,18 @@ function hud(){
 }
 const STAR=on=>`<svg viewBox="0 0 24 24" aria-hidden="true"><polygon points="12,1.8 15.1,8.6 22.4,9.3 16.9,14.2 18.5,21.5 12,17.7 5.5,21.5 7.1,14.2 1.6,9.3 8.9,8.6"
   fill="${on?'#FFD23F':'#D8CBB6'}" stroke="#1A0A2A" stroke-width="2" stroke-linejoin="round"/>${on?'<ellipse cx="9.5" cy="9" rx="2" ry="1.2" fill="#fff" opacity=".7" transform="rotate(-30 9.5 9)"/>':''}</svg>`;
-/* Cannon stats for a level `from`, and what they become at level `to`. Changed values are highlighted. */
-function powerHTML(from,to){
-  const box=(t,a,b,unit)=>`<div class="pw${a!==b?' up':''}"><span class="t">${t}</span><span class="v">${a!==b?`<s>${a}</s> → <em>${b}</em>`:a} <small>${unit}</small></span></div>`;
-  return `<div class="power">${box('Fire rate',fireRate(from),fireRate(to),'/sec')}${box('Damage',damage(from),damage(to),'/shot')}</div>`;
-}
-const poweredUp=(from,to)=>fireRate(from)!==fireRate(to)||damage(from)!==damage(to);
 const TIPS=['Stay under the blob you are shooting. Slide away when it lands.','Big blobs bounce high. Watch the shadow on the floor.','Pop blobs back to back to build a combo and earn bonus coins.','Your hearts refill at the start of every level.'];
 let ovKind='menu',settingsBack=null,confirmReset=false;
 function showOverlay(kind){
   const again=!ov.hidden&&ovKind===kind,keepScroll=again&&document.querySelector('.scroller')?document.querySelector('.scroller').scrollTop:0;
   ovKind=kind;let h='';
   if(kind==='menu')h=`<div class="logo"><span>BLOB</span><span>BLASTER</span></div>
-    ${S.best>1?`<div class="sub">Best: Level ${S.best}</div>`:''}<div class="lbl">YOUR CANNON</div>${powerHTML(S.level,S.level)}<button class="btn ol" id="go">PLAY LEVEL ${S.level}</button>`;
-  if(kind==='clear'){const up=poweredUp(S.level-1,S.level);
+    ${S.best>1?`<div class="sub">Best: Level ${S.best}</div>`:''}<button class="btn ol" id="go">PLAY LEVEL ${S.level}</button>`;
+  if(kind==='clear'){
     h=`<div class="ribbon ol" style="--rib:#3CCB6C">LEVEL ${S.level-1}</div>
     <div class="stars">${[1,2,3].map(i=>STAR(i<=starsWon)).join('')}</div>
     <div class="reward"><span class="coin-ic"></span>+${earned}</div>
-    <div class="lbl">${up?'CANNON POWER UP!':'YOUR CANNON'}</div>${powerHTML(S.level-1,S.level)}<button class="btn ol" id="go">NEXT</button>`;
-    if(up)setTimeout(()=>{if(ovKind==='clear')sfx.up()},450);}
+    <div class="sub">Next: Level ${S.level}, tougher blobs!</div><button class="btn ol" id="go">NEXT</button>`;}
   if(kind==='over')h=`<div class="ribbon ol" style="--rib:#FF4D4D">OUT OF HEARTS</div>
     <div class="sub">${Math.floor(dealt/total*100)}% cleared</div><p class="tip">${TIPS[Math.floor(Math.random()*TIPS.length)]}</p><button class="btn ol" id="go">RETRY</button>`;
   if(kind==='settings'){
@@ -652,14 +635,16 @@ function closeSettings(){
 $('gear').onclick=()=>{if(ovKind==='settings'&&!ov.hidden)closeSettings();else openSettings();};
 
 /* ---------- sizing + loop ---------- */
+/* The field is 360 units wide. On a tall phone it is stretched to the full screen width and made taller (up to 960 units)
+   so nothing is left empty; on a short or wide window it shrinks to fit (never less than 600 tall). */
+const wrap=document.getElementById('wrap');
 function resize(){
-  const w=stage.clientWidth,h=stage.clientHeight;if(!w||!h)return;
-  dpr=Math.min(window.devicePixelRatio||1,2.5);k=w/LW;VH=Math.max(LH,h/k);TOP=LH-VH;
-  cv.width=Math.round(LW*k*dpr);cv.height=Math.round(VH*k*dpr);
-  HUDB=TOP+(document.querySelector('.hud').getBoundingClientRect().bottom-stage.getBoundingClientRect().top)/k;
-  bg=null;amb=theme.init();fitCard();
-}
-new ResizeObserver(resize).observe(stage);resize();
+  const aw=Math.min(wrap.clientWidth,480),ah=wrap.clientHeight;if(!aw||!ah)return;
+  const kk=Math.min(aw/LW,ah/600),h=Math.min(960,Math.floor(ah/kk)),w=Math.round(LW*kk);
+  stage.style.width=w+'px';stage.style.height=Math.round(h*kk)+'px';
+  if(h!==LH){LH=h;GROUND=LH-72;if(theme){amb=theme.init();}}
+  dpr=Math.min(window.devicePixelRatio||1,2.5);k=w/LW;cv.width=Math.round(LW*k*dpr);cv.height=Math.round(LH*k*dpr);bg=null;fitCard();}
+new ResizeObserver(resize).observe(wrap);resize();
 let prev=performance.now();
 function loop(now){const dt=Math.min(1/30,(now-prev)/1000);prev=now;update(dt);draw(dt);requestAnimationFrame(loop);}
 

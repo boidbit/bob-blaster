@@ -1,4 +1,4 @@
-// Plays many levels with the bot in tools/bot.js and prints win rates. Used to tune the fire rate / damage curve.
+// Plays many levels with the bot in tools/bot.js and prints win rates. Used to tune the level difficulty curve (hpTarget in the game).
 //   CHROME_PATH=/path/to/chrome node tools/balance-sim.mjs            (levels 1..50 sample, 20 runs each)
 //   LEVELS=1,5,10 TRIALS=40 node tools/balance-sim.mjs
 import { launch } from './harness.mjs';
