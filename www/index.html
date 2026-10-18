@@ -152,7 +152,7 @@ S.set=Object.assign({sfx:true,vib:true,shake:true,bg:'random'},S.set||{});
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
 /* The cannon never changes: same fire rate and damage on every level. Levels get harder because the blobs do
    (more of them, bigger, more HP) -- see levelShape(). The functions keep a level argument so tools can call them. */
-const FIRE_RATE=9*.6,DAMAGE=.6;   // 40% below the old 9 shots/s and 1 damage/shot
+const FIRE_RATE=9,DAMAGE=.6;   // total power (fire rate x damage) is 40% below the old 9 shots/s x 1 damage
 const fireRate=l=>FIRE_RATE, damage=l=>DAMAGE;
 
 /* ---------- audio ---------- */
