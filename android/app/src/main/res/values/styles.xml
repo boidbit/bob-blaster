@@ -19,6 +19,9 @@
 
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+        <!-- on Android 12+ Theme.SplashScreen comes with an action bar; without these the app name and a stretched splash show at the top -->
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowNoTitle">true</item>
         <item name="android:background">@drawable/splash</item>
         <item name="android:windowBackground">@color/splashBackground</item>
         <item name="android:navigationBarColor">@color/splashBackground</item>
