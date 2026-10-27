@@ -1,0 +1,180 @@
+name: Blob Blaster shorts
+
+# makes YouTube Shorts of Blob Blaster (see shorts/README.md): the bot plays the real game in headless Chrome, each
+# short in its own style, frame by frame at 30 fps; shorts/edit.py cuts it to music made in code.
+# Run it by hand: Actions -> Blob Blaster shorts -> Run workflow. The finished shorts (an .mp4 and a .txt with a title,
+# description and hashtags for each) are in the run's "blob-blaster-shorts" artifact.
+
+on:
+  workflow_dispatch:
+    inputs:
+      count:
+        description: 'How many shorts'
+        type: choice
+        options: ['1', '2', '3', '4', '5', '6', '8', '10']
+        default: '3'
+      style:
+        description: 'What kind (random = a different one for each)'
+        type: choice
+        options: [random, lastheart, odds, giant, speedrun, satisfying, fail, challenge]
+        default: random
+      seed:
+        description: 'Seed, to make the same shorts again (empty = new ones)'
+        required: false
+        default: ''
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Plan the shorts
+        id: plan
+        env:
+          COUNT: ${{ inputs.count }}
+          STYLE: ${{ inputs.style }}
+          SEED: ${{ inputs.seed }}
+        run: |
+          set -o pipefail
+          python3 shorts/plan.py --matrix --count "$COUNT" --style "$STYLE" --seed "$SEED" | tee -a "$GITHUB_OUTPUT"
+
+      # the game's real code in Node, no browser: the tap, the bot and the director still fit the game
+      - name: Check the game hookup
+        run: node shorts/sim.mjs --check
+
+      # every style's takes, as events only (seconds, not the hour of recording)
+      - name: Check the takes of every style
+        run: |
+          set -e
+          for s in lastheart odds giant speedrun satisfying fail challenge; do
+            python3 shorts/plan.py --recipe --seed 31337 --style "$s" > "dry-$s.json"
+            node shorts/record.mjs --recipe "dry-$s.json" --out "dry/$s" --dry
+          done
+
+      - name: Tools for the cut
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          pip install -q numpy opencv-python-headless pillow fonttools brotli
+
+      # the whole cut on made-up takes, so a mistake shows in minutes, not after the long recording
+      - name: Check the cut
+        run: python3 shorts/edit.py --selftest selftest --style challenge,lastheart,speedrun
+
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: selftest
+          path: |
+            selftest/*/out/*.mp4
+            selftest/*/out/*.json
+            selftest/*/out/*.txt
+          retention-days: 3
+          if-no-files-found: ignore
+
+  short:
+    needs: plan
+    name: short ${{ matrix.n }} (${{ matrix.style }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Node packages (playwright-core drives the runner's own Chrome; no browser is downloaded)
+        run: npm ci --no-audit --no-fund
+
+      - name: ffmpeg and the cut's Python packages
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          pip install -q numpy opencv-python-headless pillow fonttools brotli
+
+      - name: Find Chrome
+        run: |
+          for c in google-chrome google-chrome-stable chromium chromium-browser; do
+            p="$(command -v "$c" || true)"
+            if [ -n "$p" ]; then break; fi
+          done
+          if [ -z "$p" ]; then echo "no Chrome on this runner"; exit 1; fi
+          echo "CHROME_PATH=$p" >> "$GITHUB_ENV"
+          "$p" --version
+
+      - name: Recipe
+        env:
+          SEED: ${{ matrix.seed }}
+          STYLE: ${{ matrix.style }}
+        run: |
+          python3 shorts/plan.py --recipe --seed "$SEED" --style "$STYLE" > recipe.json
+          cat recipe.json
+
+      - name: Record the takes
+        run: node shorts/record.mjs --recipe recipe.json --out takes
+
+      - name: Cut the short
+        env:
+          N: ${{ matrix.n }}
+          STYLE: ${{ matrix.style }}
+        run: python3 shorts/edit.py --recipe recipe.json --takes takes --out out --name "$(printf 'short-%02d-%s' "$N" "$STYLE")"
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: short-${{ matrix.n }}
+          path: |
+            out/*.mp4
+            out/*.txt
+            out/*.json
+          retention-days: 14
+
+      - uses: actions/upload-artifact@v5
+        if: failure()
+        with:
+          name: debug-${{ matrix.n }}
+          path: |
+            recipe.json
+            takes/*.jsonl
+          retention-days: 7
+          if-no-files-found: ignore
+
+  collect:
+    needs: short
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: short-*
+          path: shorts
+          merge-multiple: true
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: blob-blaster-shorts
+          path: |
+            shorts/*.mp4
+            shorts/*.txt
+          retention-days: 14
+          if-no-files-found: warn
