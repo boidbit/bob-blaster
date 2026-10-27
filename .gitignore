@@ -6,3 +6,4 @@ test-output/
 *.keystore
 *.p12
 android/keystore.properties
+__pycache__/
