@@ -104,8 +104,10 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Node packages (playwright-core drives the runner's own Chrome; no browser is downloaded)
-        run: npm ci --no-audit --no-fund
+      # playwright-core drives the runner's own Chrome (no browser is downloaded); --ignore-scripts skips sharp's native
+      # download (only the icon tool uses it), which can time out and fail the run
+      - name: Node packages
+        run: npm ci --ignore-scripts --no-audit --no-fund
 
       - name: ffmpeg and the cut's Python packages
         run: |
