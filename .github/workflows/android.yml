@@ -27,9 +27,11 @@ jobs:
           distribution: temurin
           java-version: 21
 
+      # --ignore-scripts: the only install script is sharp's (for @capacitor/assets, the icon tool run by hand); it downloads
+      # a native binary and fails the build when that download times out. Nothing here needs it.
       - name: Install and sync web assets into the Android project
         run: |
-          npm ci
+          npm ci --ignore-scripts
           npx cap sync android
 
       - name: Build debug APK (installable on any phone for testing)
